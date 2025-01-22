@@ -4,3 +4,4 @@ Thumbs.db
 *.toc
 *_cache/
 .ipynb_checkpoints/
+.Rproj.user
