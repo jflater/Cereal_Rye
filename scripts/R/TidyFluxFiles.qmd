@@ -1,0 +1,63 @@
+---
+title: "Untitled"
+format: html
+---
+
+Path to files
+```{r}
+path_to_files <-  "../../data/processed/"
+```
+```{r}
+files <- list.files(path_to_files, pattern = "*.csv", full.names = F)
+files
+```
+
+Read in the first .csv file
+```{r}
+first_file <- file.path(path_to_files, files[1])
+
+# Read the file, skipping the first row and appending the second row to headers
+raw_data <- read.csv(first_file, skip = 1, header = FALSE)
+headers <- paste0(raw_data[1, ], "_", raw_data[2, ])
+
+# Assign new headers and remove the first two rows
+colnames(raw_data) <- headers
+data <- raw_data[-c(1, 2), ]
+
+head(data)
+```
+```{r}
+colnames(data)
+```
+```{r}
+library(dplyr)
+library(tidyr)
+
+data <- data %>% separate(`LABEL_[#]`, into = c("plot", "location", "element3", "element4"), sep = "[_-]", fill = "right")
+
+head(data)
+```
+```{r}
+data <- data %>% 
+  group_by(plot, location) %>% 
+  mutate(has_match = n() > 1) %>% 
+  ungroup()
+
+head(data)
+```
+
+```{r}
+matching_rows <- data %>% dplyr::filter(has_match == TRUE) %>% 
+  select(`DATE_TIME initial_value_[YYYY-MM-DD HH:MM:SS]`, plot, location, element3, element4, `FN2O_DRY_[nmol+1m-2s-1]`, `FN2O_DRY LIN_[nmol+1m-2s-1]`, `FN2O_DRY R2_[#]`, `FN2O_DRY LIN_R2_[#]`)
+
+matching_rows
+```
+```{r}
+selected_rows <- matching_rows %>% 
+  group_by(plot, location) %>% 
+  slice_max(order_by = pmax(as.numeric(`FN2O_DRY R2_[#]`), as.numeric(`FN2O_DRY LIN_R2_[#]`), na.rm = TRUE)) %>% 
+  ungroup()
+
+head(selected_rows)
+```
+
