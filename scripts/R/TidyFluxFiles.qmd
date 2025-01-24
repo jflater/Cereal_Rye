@@ -41,7 +41,8 @@ head(data)
 data <- data %>% 
   group_by(plot, location) %>% 
   mutate(has_match = n() > 1) %>% 
-  ungroup()
+  ungroup() %>% 
+  dplyr::filter(location != "f")
 
 head(data)
 ```
@@ -59,5 +60,9 @@ selected_rows <- matching_rows %>%
   ungroup()
 
 head(selected_rows)
+```
+```{r}
+data %>% 
+  count(plot)
 ```
 
