@@ -30,10 +30,9 @@ head(data)
 colnames(data)
 ```
 ```{r}
-library(dplyr)
-library(tidyr)
 library(janitor)
 library(lubridate)
+library(tidyverse)
 
 df <- data %>% separate(`LABEL_[#]`, into = c("plot", "location", "element3", "element4"), sep = "[_-]", fill = "right") %>% 
   clean_names() %>% 
@@ -51,9 +50,6 @@ df %>%
   dplyr::filter(count > 1)
 ```
 ```{r}
-library(dplyr)
-library(stringr)
-
 # Step 1: Check unique values in the comments column
 unique_comments <- df %>% 
   select(comment_number) %>% 
@@ -73,7 +69,7 @@ df_cleaned <- df %>%
     # Add a flag for rows requiring attention based on comments
     needs_review = if_else(str_detect(comment_number, "review|issue|error"), TRUE, FALSE)
   ) %>%
-  filter(!needs_review)  # Optionally filter out rows needing review for separate handling
+  dplyr::filter(!needs_review)  # Optionally filter out rows needing review for separate handling
 ```
 
 
