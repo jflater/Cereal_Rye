@@ -32,37 +32,69 @@ colnames(data)
 ```{r}
 library(dplyr)
 library(tidyr)
+library(janitor)
+library(lubridate)
 
-data <- data %>% separate(`LABEL_[#]`, into = c("plot", "location", "element3", "element4"), sep = "[_-]", fill = "right")
+df <- data %>% separate(`LABEL_[#]`, into = c("plot", "location", "element3", "element4"), sep = "[_-]", fill = "right") %>% 
+  clean_names() %>% 
+  mutate(ymdhms = ymd_hms(date_time_initial_value_yyyy_mm_dd_hh_mm_ss),
+         date = ymd(as.Date(ymdhms))) 
 
-head(data)
+head(df)
 ```
 ```{r}
-data <- data %>% 
-  group_by(plot, location) %>% 
-  mutate(has_match = n() > 1) %>% 
+df %>% 
+  group_by(date, plot, location) %>% 
+  mutate(count = n()) %>% 
+  select(date, plot, location, count) %>%
   ungroup() %>% 
-  dplyr::filter(location != "f")
-
-head(data)
-```
-
-```{r}
-matching_rows <- data %>% dplyr::filter(has_match == TRUE) %>% 
-  select(`DATE_TIME initial_value_[YYYY-MM-DD HH:MM:SS]`, plot, location, element3, element4, `FN2O_DRY_[nmol+1m-2s-1]`, `FN2O_DRY LIN_[nmol+1m-2s-1]`, `FN2O_DRY R2_[#]`, `FN2O_DRY LIN_R2_[#]`)
-
-matching_rows
+  dplyr::filter(count > 1)
 ```
 ```{r}
-selected_rows <- matching_rows %>% 
-  group_by(plot, location) %>% 
-  slice_max(order_by = pmax(as.numeric(`FN2O_DRY R2_[#]`), as.numeric(`FN2O_DRY LIN_R2_[#]`), na.rm = TRUE)) %>% 
-  ungroup()
+library(dplyr)
+library(stringr)
 
-head(selected_rows)
+# Step 1: Check unique values in the comments column
+unique_comments <- df %>% 
+  select(comment_number) %>% 
+  distinct() %>% 
+  pull(comment_number)
+
+print(unique_comments)  # Inspect unique comments
 ```
+
+
 ```{r}
-data %>% 
-  count(plot)
+# Step 2: Filter and clean rows based on the comments column
+df_cleaned <- df %>%
+  mutate(
+    # Standardize comments to lowercase for consistent handling
+    comment_number = tolower(comment_number),
+    # Add a flag for rows requiring attention based on comments
+    needs_review = if_else(str_detect(comment_number, "review|issue|error"), TRUE, FALSE)
+  ) %>%
+  filter(!needs_review)  # Optionally filter out rows needing review for separate handling
 ```
+
+
+```{r}
+# Step 3: Address where plot numbers are > 15
+df_cleaned <- df_cleaned %>%
+  mutate(
+    # Extract numeric part of plot for processing
+    plot_num = as.numeric(plot),
+    # Create a label for plots > 15
+    large_plot = if_else(plot_num > 15, "Large", "Small")
+  ) %>%
+  select(-plot_num)  # Remove intermediate column if unnecessary
+```
+
+
+```{r}
+# Glimpse at the cleaned data
+glimpse(df_cleaned)
+
+```
+
+
 
