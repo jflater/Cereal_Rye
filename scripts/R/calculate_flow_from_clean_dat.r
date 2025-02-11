@@ -73,6 +73,25 @@ plot <- ggplot(df_may_cum, aes(x = date, y = cum_flow, color = plot)) +
 plot + geom_text(data = df_may_final, aes(label = round(cum_flow, 1)), 
                  hjust = -0.2, vjust = -0.5, size = 4)
 
+library(ggrepel)
+
+# Create the base plot without the legend
+plot <- ggplot(df_may_cum, aes(x = date, y = cum_flow, group = plot)) +
+  geom_line() +
+  labs(title = "Cumulative Flow Over Time",
+       x = "Date",
+       y = "Cumulative Flow") +
+  theme_pubr() +
+  scale_x_date(date_breaks = "1 day", date_labels = "%Y-%m-%d") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+# Add dodged text labels that include the plot number and the cumulative flow value
+plot + geom_text_repel(data = df_may_final, 
+                       aes(label = paste("Plot", plot, ":", round(cum_flow, 1))),
+                       nudge_x = 0.1, nudge_y = 0.1, 
+                       size = 4)  
+  
 ################################################################################
 ########################################
 # Create a data frame with weekly flow for each plot, ensuring year separation
