@@ -34,6 +34,6 @@ df <- df %>%
 
 # Now save the df
 
-write_csv(df, "data/plot_treatments.csv")
+write_csv(df, "data/meta/plot_treatments.csv")
 
 

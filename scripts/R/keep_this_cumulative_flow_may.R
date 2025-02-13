@@ -19,7 +19,9 @@ df <- read_csv("data/processed/Logger_Combined_Data23to24.csv") %>%
   group_by(date, plot) %>%
   summarise(flow = sum(flow, na.rm = TRUE), .groups = "drop")
 
-# Filter May 2024 data and compute cumulative flow per plot
+plot_treatments <- read_csv("data/meta/plot_treatments.csv")
+
+  # Filter May 2024 data and compute cumulative flow per plot
 df_may <- df %>% dplyr::filter(year(date) == 2024, month(date) == 5)
 df_may_cum <- df_may %>% 
   group_by(plot) %>% 
@@ -68,3 +70,20 @@ weekly_flow <- df %>%
   summarise(weekly_flow = sum(flow, na.rm = TRUE), .groups = "drop") %>%
   arrange(year, week, plot)
 print(head(weekly_flow))
+
+######
+# Join df to plot_treatments by date and plot
+df_treatments <- df %>%
+  left_join(plot_treatments, by = c("plot", "date")) %>%
+  drop_na()
+
+#ggpubr boxplot of flow by treatment
+p_box <- ggboxplot(df_treatments, x = "treatment", y = "flow",
+                   color = "treatment", palette = "jco",
+                   add = "jitter",
+                   xlab = "Treatment", ylab = "Flow",
+                   title = "Flow by Treatment and Plot",
+                   ggtheme = theme_minimal())
+print(p_box)
+
+
