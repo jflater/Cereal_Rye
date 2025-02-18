@@ -77,8 +77,16 @@ df_treatments <- df %>%
   left_join(plot_treatments, by = c("plot", "date")) %>%
   drop_na()
 
+# select only days where flow is > 0 in at least one plot
+
+filtered_data <- df_treatments %>%
+  dplyr::filter(growing_season %in% c(2023, 2024)) %>%
+  group_by(date) %>%
+  dplyr::filter(any(flow > 0)) %>%
+  ungroup()
+
 #ggpubr boxplot of flow by treatment
-p_box <- ggboxplot(df_treatments, x = "treatment", y = "flow",
+p_box_a <- ggboxplot(filtered_data, x = "treatment", y = "flow",
                    color = "treatment", palette = "jco",
                    add = "jitter",
                    xlab = "Treatment", ylab = "Flow",
@@ -86,4 +94,61 @@ p_box <- ggboxplot(df_treatments, x = "treatment", y = "flow",
                    ggtheme = theme_minimal())
 print(p_box)
 
+#########
+# Load required packages
+library(car)         # For leveneTest()
+library(ggpubr)      # For stat_compare_means()
+library(kableExtra)  # For neat HTML tables
+library(ggsci)
+# 1) Check normality (Shapiro-Wilk)
+model <- aov(flow ~ treatment, data = filtered_data)
+shapiro.test(residuals(model))  # If p < 0.05, data deviate from normality
 
+# 2) Check homogeneity of variance (Levene's test)
+leveneTest(flow ~ treatment, data = filtered_data) 
+# If p < 0.05, variances are not equal
+
+# 3) Kruskal-Wallis test (non-parametric alternative to ANOVA)
+kruskal_result <- kruskal.test(flow ~ treatment, data = filtered_data)
+print(kruskal_result)
+
+# 4) Post-hoc pairwise comparisons (Wilcoxon) with multiple-testing correction
+pairwise_result <- pairwise.wilcox.test(
+  x = filtered_data$flow, 
+  g = filtered_data$treatment, 
+  p.adjust.method = "BH",
+)
+# Display in a nice table
+kable(pairwise_result$p.value, format = "html") %>%
+  kable_styling(full_width = FALSE)
+
+# 5) Prepare data for stat_pvalue_manual (optional, if you want to add p-values onto a plot)
+pairwise_pvals <- as.data.frame(as.table(pairwise_result$p.value))
+colnames(pairwise_pvals) <- c("group1", "group2", "p_value")
+
+# 6) Visualize with boxplots and add p-values
+p_box <- ggboxplot(filtered_data, x = "treatment", y = "flow",
+                   color = "treatment",
+                   add = "jitter",
+                   xlab = "Treatment", ylab = "Flow",
+                   legend.title = "Treatment",
+                   ggtheme = theme_minimal())
+
+p_box + 
+  stat_compare_means(
+    method = "kruskal.test", 
+    label = "p.format",
+    label.x = 1.5,  # Adjust horizontally as needed
+    label.y = 1.1 * max(filtered_data$flow)
+  ) +
+  stat_pvalue_manual(
+    pairwise_pvals,
+    label = "p_value",
+    y.position = seq(
+      from = 1.05 * max(filtered_data$flow),
+      by   = 0.05 * max(filtered_data$flow),
+      length.out = nrow(pairwise_pvals)   # Ensure length matches number of comparisons
+    ),
+    step.increase = 0.1
+  ) + 
+  scale_color_frontiers() 
