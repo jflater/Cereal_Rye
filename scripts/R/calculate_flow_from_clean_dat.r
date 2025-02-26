@@ -7,7 +7,7 @@ data_dir <- "data/processed/Logger_Combined_Data23to24.csv"
 # Read data from CSV file
 water_data <- read_csv(data_dir)
 
-test <- head(water_data, 300)
+#test <- head(water_data, 300)
 
 water_data_long <- water_data %>% 
   pivot_longer(
@@ -21,10 +21,15 @@ water_data_long <- water_data %>%
     date = as.Date(timestamp)
   ) 
 
-df <- water_data_long %>% 
+sum_water_data_long <- water_data_long %>% 
   group_by(date, plot) %>%
-  summarise(flow = sum(flow)) 
+  summarise(flow_gallons = sum(flow)) 
 
+# Save to clean data folder
+
+write_csv(sum_water_data_long, "data/clean/2023_2024_SABR_tile_flow.csv")
+
+########
 ggplot(df, aes(x = date, y = flow, color = plot)) +
   geom_line() +
   labs(title = "Flow over time",
