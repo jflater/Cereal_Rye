@@ -4,8 +4,7 @@ format: html
 ---
 
 Got it! I will conduct a comprehensive review of existing literature on the impact of cereal rye cover crops on nitrogen losses, including nitrate and ammonia losses through tile drainage, as well as nitrous oxide flux from soil. I'll also examine potential mechanisms driving these effects, comparisons with other studies, and relevant findings from research conducted in similar environments. 
-
-I will let you know when the research is ready for review.
+ %>% w when the research is ready for review.
 
 # Impact of Cereal Rye Cover Crops on Nitrogen Losses in Iowa Cropping Systems
 
