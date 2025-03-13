@@ -31,9 +31,9 @@ flow_n <- flow %>%
 flow_n <- flow_n %>% 
   mutate(flow_l = flow_gallons * 3.78541)
 
-# linear interpolation of concentrations 
+# linear interpolation of concentrations, group by year and plot
 df_interpolated <- flow_n %>% 
-  group_by(plot) %>% 
+  group_by(plot, year(date)) %>% 
   arrange(date) %>%
   mutate(approx_nitrate_mg_l = na.approx(nitrate_mg_ml, x = date, na.rm = FALSE),
          approx_ammonia_mg_l = na.approx(ammonia_mg_l, x = date, na.rm = FALSE)) %>% 
