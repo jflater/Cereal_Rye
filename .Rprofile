@@ -18,3 +18,6 @@ library(tidyverse)
 
 # Set working directory to project root
 setwd(here::here())
+
+library(conflicted)
+conflicted::conflicts_prefer(dplyr::filter())
