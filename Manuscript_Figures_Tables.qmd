@@ -1,7 +1,9 @@
 ---
 title: "Sorghum and Cereal Rye table and figure generation"
 author: "Jared Flater"
-format: html
+format:
+  html:
+    theme: flatly
 ---
 ```{r}
 library(tidyr)

@@ -316,12 +316,14 @@ sorghum_max <- sorghum_max %>%
 # Create boxplots by growing season (x-axis) and treatment (fill)
 p3 <- ggplot(sorghum_max, aes(x = factor(growing_season), y = max_loss_kg_ha, fill = treatment)) +
   geom_boxplot() +
-  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "black") +
+  #stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "black") +
   labs(
     x = "Growing Season",
-    y = expression("Cumulative Nitrate-N Loss (kg N ha"^{-1}*")")
+    y = expression("Cumulative Inorganic-N Loss (kg N ha "^{-1}*")"),
+    fill = "Treatment"
   ) +
-  theme_sabr()
+  theme_sabr() +
+  scale_fill_manual(values = treatment_colors)
 
 
 p3
@@ -382,11 +384,8 @@ p4 <- ggplot(summarize_flux, aes(x = year_month_day, y = mean_flux, color = Trea
     y = expression("Daily N"[2]*"O Flux (g N ha"^"-1"*")"),
     color = "Treatment"
   ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        strip.text = element_text(size = 16))
+  theme_sabr() +
+  scale_color_manual(values = treatment_colors)
 
 # Display the plot
 print(p4)
@@ -460,4 +459,110 @@ print(heatmap_plot)
 
 ggsave("figures/Figure_6.tiff", plot = heatmap_plot, width = 12, height = 8, dpi = 600, compression = "lzw")
 ggsave("figures/Figure_6.pdf", plot = heatmap_plot, width = 7.1, height = 5.5)
+#######
 
+publish_table <- function(data, caption, file_name, digits = 2, engine = "xelatex") {
+  # Load required packages
+  if (!requireNamespace("dplyr", quietly = TRUE)) stop("Please install 'dplyr'")
+  if (!requireNamespace("stringr", quietly = TRUE)) stop("Please install 'stringr'")
+  if (!requireNamespace("knitr", quietly = TRUE)) stop("Please install 'knitr'")
+  if (!requireNamespace("kableExtra", quietly = TRUE)) stop("Please install 'kableExtra'")
+  if (!requireNamespace("tinytex", quietly = TRUE)) stop("Please install 'tinytex'")
+  
+  library(dplyr)
+  library(stringr)
+  library(knitr)
+  library(kableExtra)
+  library(tinytex)
+  
+  # Process the data:
+  # 1) Ensure data is ungrouped
+  # 2) Replace underscores in column names with a space for a cleaner, publication-ready look
+  table_processed <- data %>% ungroup()
+  colnames(table_processed) <- gsub("_", " ", colnames(table_processed))
+  
+  # Create the LaTeX table using kable and kableExtra.
+  # We set escape = FALSE and remove scale_down (which inserts \resizebox and extra addlinespace)
+  table_latex <- kable(
+    table_processed,
+    format   = "latex",
+    booktabs = TRUE,
+    caption  = caption,
+    digits   = digits,
+    escape   = FALSE
+  ) %>%
+    kable_styling(
+      latex_options = c("hold_position"),
+      full_width    = FALSE
+    )
+  
+  # Remove any occurrences of \addlinespace to eliminate extra gaps.
+  table_latex <- gsub("\\\\addlinespace", "", table_latex)
+  
+  # Build a minimal LaTeX document.
+  if (engine == "xelatex") {
+    latex_doc <- paste0(
+      "\\documentclass{article}\n",
+      "\\usepackage{fontspec}\n",         
+      "\\usepackage{graphicx}\n",
+      "\\usepackage{booktabs}\n",
+      "\\usepackage{geometry}\n",
+      "\\geometry{margin=1in}\n",
+      "\\begin{document}\n",
+      table_latex,
+      "\n\\end{document}"
+    )
+  } else {
+    latex_doc <- paste0(
+      "\\documentclass{article}\n",
+      "\\usepackage[utf8]{inputenc}\n",
+      "\\usepackage{graphicx}\n",
+      "\\usepackage{booktabs}\n",
+      "\\usepackage{geometry}\n",
+      "\\geometry{margin=1in}\n",
+      "\\begin{document}\n",
+      table_latex,
+      "\n\\end{document}"
+    )
+  }
+  
+  # Write the LaTeX document to a temporary .tex file.
+  tex_file <- tempfile(fileext = ".tex")
+  writeLines(latex_doc, tex_file)
+  
+  # Compile the .tex file to PDF using the specified engine.
+  if (engine == "xelatex") {
+    tinytex::xelatex(tex_file)
+  } else {
+    tinytex::pdflatex(tex_file)
+  }
+  
+  # The generated PDF file will have the same base name as the .tex file, but with a .pdf extension.
+  pdf_file <- sub("\\.tex$", ".pdf", tex_file)
+  
+  # Create the target directory if needed and copy the PDF to file_name.
+  dir.create(dirname(file_name), showWarnings = FALSE, recursive = TRUE)
+  file.copy(pdf_file, file_name, overwrite = TRUE)
+  
+  message("PDF table saved to: ", file_name)
+}
+
+
+
+# -------------------------------
+
+# Display the table inline
+kable(
+  figure1_table,
+  digits = 2,
+  caption = "Summary of Cumulative N Losses (Figure 1)"
+)
+
+# Generate the publication-ready PDF table
+publish_table(
+  figure1_table,
+  caption   = "Summary of Cumulative N Losses (Figure 1)",
+  file_name = "tables/figure1_table.pdf",
+  digits    = 2,
+  engine    = "xelatex"
+)

@@ -1,0 +1,637 @@
+---
+title: "Impact of cereal rye cover crop on nitrogen losses from sorghum bioenergy in Central Iowa"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    toc-location: left
+    code-fold: true
+---
+```{r, libraries, warning=FALSE, message=F, echo=T}
+# Load necessary packages
+library(lubridate)
+library(ggplot2)
+library(zoo)
+library(conflicted)
+library(lme4)
+library(emmeans)
+library(broom)
+library(knitr)
+library(kableExtra)
+library(stringr)
+library(tidyr)
+library(scales)
+library(readr)
+library(dplyr)
+library(car)
+library(rstatix)
+library(janitor)
+
+conflict_prefer("filter", "dplyr")
+```
+```{r, colors and theme, cache=T}
+# --- Theme & Colors  ---
+treatment_colors <- c(
+  "Corn" = "#fda500",
+  "Soy" = "#E9967A",
+  "Sorghum" = "#D2B48C",
+  "Sorghum + Rye" = "#8B4513"
+)
+
+theme_sabr <- function(base_size = 14) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      axis.title = element_text(size = base_size + 2),
+      axis.text = element_text(size = base_size),
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.title = element_text(size = base_size),
+      legend.text = element_text(size = base_size - 1),
+      strip.text = element_text(size = base_size + 2),
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.background = element_rect(fill = "white", color = NA),
+      plot.title = element_blank()
+    )
+}
+```
+
+# Figures
+
+Let's visualize some data on our way to figure 1.
+
+**Mean flux from the two growing seasons.**
+
+```{r, figure1 data}
+# --- Data Processing ---
+# Read in nitrous oxide flux data and convert date strings
+nitrous_oxide <- read_csv("data/clean/seasonal_flux_combined.csv", show_col_types = FALSE)
+
+# Interpolate daily flux values for each plot
+df <- nitrous_oxide %>%
+  group_by(growing_season, Treatment, RowvsInterrow, plot) %>%
+  complete(year_month_day = seq(min(year_month_day), max(year_month_day), by = "day")) %>%
+  arrange(year_month_day) %>%
+  mutate(gnha_day_interpolated = zoo::na.approx(gnha_day_no_negative, na.rm = FALSE)) %>%
+  fill(gnha_day, .direction = "downup") %>%
+  dplyr::filter(RowvsInterrow != "Fertilizer_band")
+
+# Calculate cumulative flux for each plot
+df <- df %>%
+  group_by(growing_season, Treatment, RowvsInterrow, plot) %>%
+  mutate(cumulative_flux = cumsum(gnha_day_interpolated))
+
+# Calculate cumulative flux for the final day and summarize by treatment
+test <- df %>%
+  group_by(growing_season, Treatment, plot) %>%
+  dplyr::filter(year_month_day == max(year_month_day)) %>%
+  ungroup() %>%
+  group_by(Treatment, growing_season) %>%
+  summarize(
+    mean = mean(cumulative_flux, na.rm = TRUE),
+    sd   = sd(cumulative_flux, na.rm = TRUE),
+    n    = n(),
+    se   = sd / sqrt(n),
+    
+    # Use t-distribution for 95% CI
+    t_crit = qt(0.975, df = n - 1),  # 0.975 for a 95% CI on both sides
+    
+    ci_lower = mean - t_crit * se,
+    ci_upper = mean + t_crit * se,
+    
+    .groups = "drop"
+  )
+  
+# Set factor levels for Treatment
+test$Treatment <- factor(test$Treatment, levels = c("Corn", "Soy", "Sorghum", "Sorghum + Rye"))
+
+# Plotting cumulative flux with error bars
+p <- ggplot(test, aes(x = Treatment, y = mean, fill = Treatment, group = Treatment)) +
+  geom_col(position = position_dodge(0.8), color = "black") +  # Using geom_col for bar plots
+  geom_errorbar(aes(ymin = mean - se , ymax = mean + se),
+                width = 0.2, position = position_dodge(0.8)) +
+  facet_wrap( ~ growing_season, scales = "free_y") +  
+  labs(
+    y = expression("Cumulative N"[2]*"O Flux (g N ha"^"-1"*")"),
+    x = "Treatment"
+  ) +
+  theme_sabr() +
+  scale_fill_manual(values = treatment_colors)
+
+# Print the plot
+print(p)
+```
+
+We need to think about this: 2023 captures 365 days, while 2024 ends short of that. I have growing seasons from April to April. But our flux in 2024 ends in November. Thus this isn't truly a year. Should we define a growing season differently? March to November?
+
+```{r}
+test %>% 
+  kable() 
+```
+
+
+```{r, flow data}
+cumulative_flow_data <- read_csv("data/clean/2023_2024_SABR_tile_cumulative_n.csv", show_col_types = FALSE)
+```
+
+Here let's look at the N leached (Nitrate + Ammonia) for each season.
+```{r, individual flow years 23}
+gs_23 <- 
+  cumulative_flow_data %>% 
+  dplyr::filter(growing_season == 2023 & !(year(date) == 2024))
+
+
+nitrogen_summary <- gs_23 %>%
+  group_by(date, treatment) %>%
+  mutate(cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 10^6) / 0.145) %>% 
+  summarise(Cumulative_Nitrogen_mean = mean(cumulative_n_loss_kg_ha),
+            Cumulative_Nitrogen_se = sd(cumulative_n_loss_kg_ha) / sqrt(n()),
+            .groups = "drop") %>%
+  ungroup()
+
+
+library(scales)
+# Plotting cumulative nitrogen lost per hectare over time, facet by treatment
+z <- ggplot(nitrogen_summary, aes(x = date, y = Cumulative_Nitrogen_mean, group = treatment, color = treatment)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Cumulative_Nitrogen_mean - Cumulative_Nitrogen_se, 
+                  ymax = Cumulative_Nitrogen_mean + Cumulative_Nitrogen_se, fill = treatment), alpha = 0.2) +
+  labs(x = "Date", 
+       y = expression("Cumulative Inorganic N Leached (kg N ha"^"-1"*")")) +
+  facet_wrap(~ treatment) +
+  scale_color_manual(values = treatment_colors) +
+  scale_fill_manual(values = treatment_colors) +
+  theme_sabr() + # Set overall plot background to white
+  scale_x_date(labels = date_format("%b %y"))  # Format dates to show abbreviated month and the last two digits of the year
+
+z
+```
+
+```{r, individual flow years 24}
+ggsave("figures/Cumulative_Nitrogen_23.png", plot = z, width = 12, height = 8, dpi = 300)
+gs_24 <- cumulative_flow_data %>% 
+  dplyr::filter(growing_season == 2024 & !(year(date) %in% c(2023,2025)))
+
+nitrogen_summary <- gs_24 %>%
+  group_by(date, treatment) %>%
+  mutate(cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 10^6) / 0.145) %>% 
+  summarise(Cumulative_Nitrogen_mean = mean(cumulative_n_loss_kg_ha),
+            Cumulative_Nitrogen_se = sd(cumulative_n_loss_kg_ha) / sqrt(n()),
+            .groups = "drop") %>%
+  ungroup()
+
+library(scales)
+# Plotting cumulative nitrogen lost per hectare over time, facet by treatment
+zz <- ggplot(nitrogen_summary, aes(x = date, y = Cumulative_Nitrogen_mean, group = treatment, color = treatment)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Cumulative_Nitrogen_mean - Cumulative_Nitrogen_se, 
+                  ymax = Cumulative_Nitrogen_mean + Cumulative_Nitrogen_se, fill = treatment), alpha = 0.2) +
+  labs(x = "Date", 
+       y = expression("Cumulative Inorganic N Leached (kg N ha"^"-1"*")")) +
+  facet_wrap(~ treatment) +
+  scale_color_manual(values = treatment_colors) +
+  scale_fill_manual(values = treatment_colors) +
+  theme_sabr() + # Set overall plot background to white
+  scale_x_date(labels = date_format("%b %y"))  # Format dates to show abbreviated month and the last two digits of the year
+
+zz
+ggsave("figures/Cumulative_Nitrogen_24.tiff", plot = zz, width = 180, height = 130, units = "mm", dpi = 600)
+```
+
+```{r, combine years}
+# For 2023
+drainage_summary_23 <- gs_23 %>%
+  group_by(treatment, plot) %>%
+  slice_max(order_by = cumulative_n_loss_mg, with_ties = FALSE) %>%
+  mutate(growing_season = 2023)
+
+
+# For 2024
+drainage_summary_24 <- gs_24 %>%
+  group_by(treatment, plot) %>%
+  slice_max(order_by = cumulative_n_loss_mg, with_ties = FALSE) %>%
+  mutate(growing_season = 2024)
+
+# Combine and format for final bar plot
+drainage_summary <- bind_rows(drainage_summary_23, drainage_summary_24) %>%
+  mutate(
+    cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 1e6) / 0.145,
+    N_Type = "Nitrogen Leaching",
+    Treatment = factor(treatment, levels = c("Corn", "Soy", "Sorghum", "Sorghum + Rye"))
+  ) %>%
+  group_by(growing_season, Treatment, N_Type) %>%
+  summarise(
+    mean = mean(cumulative_n_loss_kg_ha, na.rm = TRUE),
+    sd = sd(cumulative_n_loss_kg_ha, na.rm = TRUE),
+    n = n(),
+    se = sd / sqrt(n),
+    t_crit = qt(0.975, df = n - 1),
+    ci_lower = mean - t_crit * se,
+    ci_upper = mean + t_crit * se,
+    .groups = "drop"
+  )
+```
+```{r}
+drainage_summary %>% 
+  kable()
+```
+
+```{r, convert units}
+n2o_summary <- test %>%
+  mutate(
+    mean = mean / 1000,
+    se = se / 1000,
+    ci_lower = ci_lower / 1000,
+    ci_upper = ci_upper / 1000,
+    N_Type = "N₂O Emissions"
+  )
+
+```
+
+```{r, combine data}
+print(drainage_summary)
+all_n_data <- bind_rows(drainage_summary, n2o_summary)
+```
+## Figure 1
+```{r, plot figure 1}
+ggplot(all_n_data, aes(x = Treatment, y = mean, fill = N_Type)) +
+  geom_col(position = position_dodge(0.8), color = "black") +
+  geom_errorbar(
+    aes(ymin = mean - se, ymax = mean + se),
+    position = position_dodge(0.8),
+    width = 0.2
+  ) +
+  facet_wrap(~ growing_season) +
+  scale_fill_manual(
+  values = c("N₂O Emissions" = "#d73027", "Nitrogen Leaching" = "#4575b4"),  # Red = N2O, Blue = Drainage
+  labels = c("N₂O Emissions" = expression("N"[2]*"O Emissions"), "Nitrate Leaching" = "Nitrate Leaching"),
+  name = "N Loss Pathway"
+) +
+  labs(
+  y = bquote("Cumulative N Loss (kg N ha"^{-1}*")"),
+  x = "Treatment",
+  fill = "N Loss Pathway"
+) +
+  theme_sabr() 
+
+ggsave("figures/Figure_1.tiff",
+       width = 180, height = 130, units = "mm", dpi = 600, compression = "lzw")
+ggsave("figures/Figure_1.pdf", width = 7.1, height = 5.5)  # double-column width
+```
+
+```{r}
+# Create a table for the data in Figure 1 by selecting the relevant columns
+figure1_table <- all_n_data %>%
+  select(growing_season, Treatment, N_Type, mean, sd, n, se, ci_lower, ci_upper)
+
+# Display the table with a caption; adjust digits as needed
+kable(figure1_table, digits = 2, caption = "Summary of Cumulative N Losses (Figure 1)")
+```
+
+## Figure 2
+
+```{r, figure 2}
+# Create a year column
+nitrate_data <- cumulative_flow_data %>%
+  dplyr::filter(
+    treatment %in% c("Sorghum", "Sorghum + Rye"),
+    !is.na(approx_nitrate_mg_l)
+  ) %>%
+  mutate(year = year(date)) %>%
+  group_by(date, treatment, year) %>%
+  summarise(
+    mean_nitrate = mean(approx_nitrate_mg_l, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Plot without SE ribbon
+ggplot(nitrate_data, aes(x = date, y = mean_nitrate, color = treatment)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c("Sorghum" = "#D2B48C", "Sorghum + Rye" = "#8B4513")) +
+  facet_wrap(~ year, scales = "free_x") +
+  labs(
+    x = "Date",
+    y = expression("Inorganic-N Concentration (mg N L"^{-1}*")"),
+    color = "Treatment"
+  ) +
+  theme_sabr() +
+  scale_color_manual(values = treatment_colors) 
+ggsave("figures/Figure_2.tiff",
+       width = 180, height = 130, units = "mm", dpi = 600, compression = "lzw")
+ggsave("figures/Figure_2.pdf", width = 7.1, height = 5.5)
+```
+
+## Figure 3
+
+```{r, boxplots nitrate losses}
+# --- Figure 3: Annual Nitrate-N Losses (Boxplots) ---
+sorghum_data <- cumulative_flow_data %>% dplyr::filter(treatment %in% c("Sorghum", "Sorghum + Rye"))
+sorghum_max <- sorghum_data %>% 
+  group_by(growing_season, plot) %>% 
+  summarize(
+    max_loss = max(cumulative_n_loss_mg, na.rm = TRUE),
+    treatment = first(treatment),
+    .groups = "drop"
+  ) %>%
+  mutate(max_loss_kg_ha = (max_loss / 1e6) / 0.145)
+p3 <- ggplot(sorghum_max, aes(x = factor(growing_season), y = max_loss_kg_ha, fill = treatment)) +
+  geom_boxplot() +
+  labs(x = "Growing Season",
+       y = expression("Cumulative Inorganic-N Loss (kg N ha "^{-1}*")"),
+       fill = "Treatment") +
+  theme_sabr() +
+  scale_fill_manual(values = treatment_colors)
+print(p3)
+ggsave("figures/Figure_3.tiff", plot = p3, width = 180, height = 130, units = "mm", dpi = 600)
+ggsave("figures/Figure_3.pdf", plot = p3, width = 7.1, height = 5.5)
+
+```
+
+## Figure 4
+
+```{r, flux with fert events}
+# --- Figure 4: Daily N₂O Flux with Fertilizer Events ---
+summarize_flux <- nitrous_oxide %>%
+  dplyr::filter(Treatment %in% c("Sorghum", "Sorghum + Rye")) %>%
+  group_by(growing_season, year_month_day, Treatment) %>%
+  summarize(mean_flux = mean(gnha_day_no_negative, na.rm = TRUE),
+            se_flux   = sd(gnha_day_no_negative, na.rm = TRUE) / sqrt(n()),
+            .groups = "drop") %>%
+  ungroup() %>%
+  mutate(Treatment = factor(Treatment, levels = c("Sorghum", "Sorghum + Rye")))
+fert_events <- data.frame(
+  growing_season = c(2023, 2024),
+  fertilizer_date = as.Date(c("2023-05-05", "2024-07-17"))
+)
+p4 <- ggplot(summarize_flux, aes(x = year_month_day, y = mean_flux, color = Treatment)) +
+  geom_line(size = 1.2, alpha = 0.8) +
+  geom_point(size = 2, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = mean_flux - se_flux, ymax = mean_flux + se_flux),
+                width = 0.2, alpha = 0.5, position = position_dodge(width = 0.5)) +
+  geom_vline(data = fert_events, 
+             aes(xintercept = fertilizer_date, color = "Fertilizer Date"),
+             linetype = "dashed", alpha = 0.7, show.legend = TRUE) +
+  geom_label(data = fert_events, 
+             inherit.aes = FALSE,
+             aes(x = fertilizer_date, y = 90,
+                 label = format(fertilizer_date, "%d-%b-%Y")),
+             size = 3, hjust = 0, vjust = 0.5, show.legend = FALSE) +
+  scale_x_date(date_breaks = "4 week", date_labels = "%d-%b-%Y") +
+  labs(x = "Date",
+       y = expression("Daily N"[2]*"O Flux (g N ha"^"-1"*")"),
+       color = "Legend") +
+  theme_sabr() +
+  scale_color_manual(values = c(treatment_colors, "Fertilizer Date" = "red"))
+print(p4)
+ggsave("figures/Figure_4.tiff", plot = p4, width = 180, height = 130, units = "mm", dpi = 600)
+ggsave("figures/Figure_4.pdf", plot = p4, width = 7.1, height = 5.5)
+
+```
+
+## Figure 5
+
+```{r, row vs. interrow}
+# --- Figure 5: Row vs. Interrow N₂O Emissions ---
+flux_comparison <- df %>% dplyr::filter(RowvsInterrow != "Fertilizer_band")
+p5 <- ggplot(flux_comparison, aes(x = year_month_day, y = gnha_day_no_negative, color = RowvsInterrow)) +
+  geom_jitter(size = 1, alpha = 0.8) +
+  labs(x = "Date",
+       y = expression("Daily N"[2]*"O Flux (g N ha"^{-1}*")"),
+       title = "Row vs. Interrow N₂O Emissions Over Time") +
+  facet_wrap(growing_season ~ Treatment, scales = "free_x", nrow = 2) +
+  theme_sabr()
+print(p5)
+ggsave("figures/Figure_5.tiff", plot = p5, width = 180, height = 130, units = "mm", dpi = 600)
+ggsave("figures/Figure_5.pdf", plot = p5, width = 7.1, height = 5.5)
+```
+
+## Figure 6
+
+```{r, heatmap}
+# --- Figure 6: Spatial Snapshot (Heatmap) ---
+final_day_data <- df %>%
+  group_by(growing_season, Treatment, plot) %>%
+  dplyr::filter(year_month_day == max(year_month_day)) %>%
+  ungroup() %>%
+  mutate(plot = as.numeric(plot),
+         x = ((plot - 1) %% 5) + 1,
+         y = 3 - floor((plot - 1) / 5),
+         label = Treatment)
+heatmap_plot <- ggplot(final_day_data, aes(x = x, y = y, fill = cumulative_flux)) +
+  geom_tile(color = "white", width = 0.9, height = 0.9) +
+  geom_text(aes(label = label), size = 5, color = "black") +
+  scale_fill_viridis_c(option = "plasma", name = "Cumulative Flux") +
+  facet_wrap(~ growing_season, ncol = 1) +
+  labs(x = "Plot Column", y = "Plot Row (from south to north)") +
+  scale_x_continuous(breaks = NULL) +
+  scale_y_continuous(breaks = NULL) +
+  theme_sabr()
+print(heatmap_plot)
+ggsave("figures/Figure_6.tiff", plot = heatmap_plot, width = 12, height = 8, dpi = 600)
+ggsave("figures/Figure_6.pdf", plot = heatmap_plot, width = 7.1, height = 5.5)
+```
+
+## Figure 7
+```{r}
+corn_soy <- all_n_data %>% 
+  filter(Treatment %in% c("Corn", "Soy"))
+
+ggplot(corn_soy, aes(x = Treatment, y = mean, fill = N_Type)) +
+  geom_col(position = position_dodge(0.8), color = "black") +
+  geom_errorbar(
+    aes(ymin = mean - se, ymax = mean + se),
+    position = position_dodge(0.8),
+    width = 0.2
+  ) +
+  facet_wrap(~ growing_season) +
+  scale_fill_manual(
+  values = c("N₂O Emissions" = "#d73027", "Nitrogen Leaching" = "#4575b4"),  # Red = N2O, Blue = Drainage
+  labels = c("N₂O Emissions" = expression("N"[2]*"O Emissions"), "Nitrate Leaching" = "Nitrate Leaching"),
+  name = "N Loss Pathway"
+) +
+  labs(
+  y = bquote("Cumulative N Loss (kg N ha"^{-1}*")"),
+  x = "Treatment",
+  fill = "N Loss Pathway"
+) +
+  theme_sabr() 
+
+ggsave("figures/Figure_7.tiff",
+       width = 180, height = 130, units = "mm", dpi = 600, compression = "lzw")
+ggsave("figures/Figure_7.pdf", width = 7.1, height = 5.5)  # double-column width
+```
+```{r}
+corn_soy %>% 
+  kbl(digits = 2) %>% 
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+
+
+```{r}
+final_sorghum <- df %>% 
+  group_by(plot, growing_season, Treatment) %>%
+  dplyr::filter(year_month_day == max(year_month_day)) %>%  # One value per plot
+  ungroup()
+```
+
+```{r}
+# Make sure 'Treatment' is a factor
+final_sorghum <- final_sorghum %>% 
+  mutate(Treatment = as.factor(Treatment),
+         growing_season = as.factor(growing_season))
+
+# ----- Exploratory Data Analysis -----
+
+# Boxplot to visualize the cumulative_flux across treatments
+ggplot(final_sorghum, aes(x = Treatment, y = cumulative_flux)) +
+  geom_boxplot(outliers = F) +
+  geom_jitter(aes(color = growing_season, shape = RowvsInterrow)) +
+  theme_minimal() +
+  labs(x = "Treatment", 
+       y = "Cumulative Flux") 
+```
+
+```{r}
+# ----- Assumption Testing -----
+final_sorghum$Treatment <- factor(final_sorghum$Treatment, levels = c("Corn", "Soy", "Sorghum", "Sorghum + Rye"))
+# 1. Normality Test: Shapiro-Wilk test for each treatment group
+normality_results <- final_sorghum %>%
+  group_by(Treatment) %>%
+  summarise(shapiro_p = shapiro.test(cumulative_flux)$p.value)
+print(normality_results)
+# Look for p > 0.05 in each group to consider normality acceptable.
+# But be cautious: with n = 3-4, these tests are low power.
+
+# 2. Homogeneity of Variance: Levene's test
+levene_result <- leveneTest(cumulative_flux ~ Treatment, data = final_sorghum)
+print(levene_result)
+# A non-significant result (p > 0.05) suggests equal variances across groups.
+
+krusk.test <- final_sorghum %>%
+  group_by(growing_season) %>%
+  kruskal_test(cumulative_flux ~ Treatment)
+print(krusk.test)
+
+stat.test <- final_sorghum %>%
+  group_by(growing_season) %>%
+  dunn_test(cumulative_flux ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") 
+print(stat.test)
+
+p <- ggplot(final_sorghum, aes(x = Treatment, y = cumulative_flux, fill = Treatment)) + 
+  geom_boxplot() +
+  labs(x = "Treatment", y = expression("Cumulative N"[2]*"O Flux (g N ha"^"-1"*")")) +
+  facet_wrap( ~ growing_season) +
+  theme_sabr() +
+  scale_fill_manual(values = treatment_colors)
+p
+```
+
+```{r}
+# Create drainage summary stats (if not already done)
+drainage_summary_stats <- bind_rows(drainage_summary_23, drainage_summary_24) %>%
+  mutate(
+    cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 1e6) / 0.145,
+    N_Type = "Nitrogen Leaching",
+    Treatment = factor(treatment,
+                       levels = c("Corn",
+                                  "Soy",
+                                  "Sorghum",
+                                  "Sorghum + Rye"))
+    )
+
+krusk.test <- drainage_summary_stats %>%
+  group_by(growing_season) %>%
+  kruskal_test(cumulative_n_loss_kg_ha ~ Treatment) %>%
+  kable("html", caption = "Draiange Satistics (Kruskal Test),
+        N loss in kg/ha") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(width = "100%", height = "500px")
+krusk.test
+stat.test <- drainage_summary_stats%>%
+  group_by(growing_season) %>%
+  dunn_test(cumulative_n_loss_kg_ha ~ Treatment) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  kable("html", caption = "Draiange Satistics (Dunn Test), N loss in kg/ha") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE) %>%
+  scroll_box(width = "100%", height = "500px")
+stat.test
+p <- ggplot(drainage_summary_stats, aes(x = Treatment, y = cumulative_n_loss_kg_ha, fill = Treatment)) + 
+  geom_boxplot() +
+  labs(x = "Treatment", y = expression("Cumulative inorganic N (kg N ha"^"-1"*")")) +
+  facet_wrap( ~ growing_season) +
+  theme_sabr() +
+  scale_fill_manual(values = treatment_colors)
+
+```
+### Rye percent reduction
+```{r}
+reduction <- drainage_summary_stats %>% 
+  group_by(growing_season, Treatment) %>%
+  summarise(
+    mean_cumulative_n_loss = mean(cumulative_n_loss_kg_ha, na.rm = TRUE),
+    .groups = "drop"
+  )
+reduction %>% 
+  kbl(digits = 2) %>% 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+reduction_comp <- reduction %>%
+  dplyr::filter(Treatment %in% c("Sorghum", "Sorghum + Rye")) %>%
+  pivot_wider(names_from = Treatment, values_from = mean_cumulative_n_loss) %>%
+  mutate(
+    reduction_abs = Sorghum - `Sorghum + Rye`,
+    reduction_perc = (reduction_abs / Sorghum) * 100
+  ) 
+reduction_comp %>% 
+  kbl(digits = 2) %>% 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+# Tables
+## Table 1
+```{r}
+my_table <- all_n_data %>% 
+ select(`Growing Season` = growing_season, `N Loss Pathway` = N_Type, Treatment, Mean = mean,
+        sd, n, se, `ci upper` = ci_upper, `ci lower` = ci_lower) %>%
+  kbl(digits = 2)  %>%
+  row_spec(9:16, bold = F, background = "#b4b4b4") %>% 
+  row_spec(1:8, bold = F, background = "#c9c9c9") %>% 
+  kable_classic(full_width = F, html_font = "Cambria")
+
+my_table
+
+```
+```{r}
+library(officer)
+library(flextable)
+library(dplyr)
+my_table <- all_n_data %>% 
+  mutate(growing_season = make_date(year = growing_season, month = 1, day = 1)) %>% 
+  select(`Growing Season` = growing_season, `N Loss Pathway` = N_Type, Treatment, Mean = mean,
+        sd, n, se, `ci upper` = ci_upper, `ci lower` = ci_lower)
+publish_table_word <- function(data, caption, file_name, digits = 2) {
+  # Optionally, format numeric columns if needed:
+  data <- data %>% mutate_if(is.numeric, ~ round(., digits))
+  
+  # Create a flextable object.
+  ft <- flextable(data)
+  ft <- colformat_double(ft, digits = digits)
+  ft <- set_caption(ft, caption = caption)
+  ft <- autofit(ft)
+  ft <- colformat_date(ft, j = "`Growing Season`", fmt_date = "%Y")
+  
+  # Create a Word document and add the table.
+  doc <- read_docx()
+  doc <- body_add_flextable(doc, value = ft)
+  
+  # Save the document.
+  print(doc, target = file_name)
+  message("Word table saved to: ", file_name)
+}
+
+# Example usage:
+publish_table_word(my_table, "Cumulative N losses", "tables/publication_ready_table.docx")
+
+```
+

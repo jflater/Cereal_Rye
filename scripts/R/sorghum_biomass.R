@@ -89,6 +89,7 @@ ggsave("figures/sorghum_biomass_2023.png", width = 8, height = 6, dpi = 300)
 
 ########### 
 #####2024
+library(readxl)
 sorg_biomass_24 <- read_excel("C:/Users/jflater/Box/CABBI/Data/MeasuredData/SABR/SmallDrainagePlots/Biomass/2024GrowingSeason/RecordingDataSheets/sorg_chopper_harvest_load_weights.xlsx")
 sorg_biomass_24 <- sorg_biomass_24 %>% 
   dplyr::filter(Study == "Drainage") %>% 
@@ -132,7 +133,7 @@ ggplot(biomass_summary, aes(x = treatment, y = mean_biomass, fill = treatment)) 
   geom_bar(stat = "identity", color = "black", width = 0.7) +
   geom_errorbar(aes(ymin = mean_biomass - ci, ymax = mean_biomass + ci),
                 width = 0.2, color = "black") +
-  labs(x = "Treatment", y = expression("Average Biomass 2023 (Mg ha"^-1*")")) +
+  labs(x = "Treatment", y = expression("Average Biomass 2024 (Mg ha"^-1*")")) +
   scale_fill_manual(values = treatment_colors) +
   theme_minimal() +
   theme(legend.position = "none",
