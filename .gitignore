@@ -8,3 +8,5 @@ Thumbs.db
 *.tiff
 *.tif
 data/
+
+/.quarto/
