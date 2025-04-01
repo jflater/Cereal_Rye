@@ -5,3 +5,5 @@ Thumbs.db
 *_cache/
 .ipynb_checkpoints/
 .Rproj.user
+*.tiff
+*.tif
