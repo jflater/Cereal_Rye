@@ -634,4 +634,27 @@ publish_table_word <- function(data, caption, file_name, digits = 2) {
 publish_table_word(my_table, "Cumulative N losses", "tables/publication_ready_table.docx")
 
 ```
+# Climatic (rain/temp) data
+```{r}
+rain <- read_csv("data/SABR_Shack_mean_rain.csv", show_col_types = FALSE) 
+str(rain)
+```
 
+```{r}
+rain %>% 
+  group_by(ymd(as.Date(TIMESTAMP))) %>% 
+  summarise(sum = sum(Mean_Rain))
+```
+
+```{r}
+rain %>% 
+  ggplot(aes(x = TIMESTAMP, y = Mean_Rain)) +
+  # Plot points where Mean_Rain == 0 in white
+  geom_point(data = filter(rain, Mean_Rain == 0), 
+             color = "white", size = 3) +
+  # Plot points where Mean_Rain > 0 with a gray-to-black gradient
+  geom_point(data = filter(rain, Mean_Rain > 0), 
+             aes(color = Mean_Rain), size = 3) +
+  scale_color_gradient(low = "gray", high = "black") +
+  theme_sabr()
+```
