@@ -1,0 +1,117 @@
+# -------------------------------
+# Step 1: Create the outer grid (8 x 8, 25 m apart)
+# -------------------------------
+# Generate an 8×8 grid with x and y coordinates from 0 to 175 m
+outer_grid <- expand.grid(x = seq(0, (8 - 1) * 25, by = 25),
+                          y = seq(0, (8 - 1) * 25, by = 25))
+# Label the grid for later identification
+outer_grid <- outer_grid %>% mutate(Grid = "Outer")
+
+# Randomly select one of the outer grid points to be the center for the inner grids.
+set.seed(123)  # For reproducibility. Remove or change for different random results.
+chosen_point <- outer_grid[sample(nrow(outer_grid), 1), ]
+print(chosen_point)
+# This randomly selected point (e.g., point 20 if that’s what the sample returns) 
+# will serve as the center for the two inner grids.
+
+# -------------------------------
+# Step 2: Create the middle grid (5 x 5, 5 m apart) around the chosen point
+# -------------------------------
+# The middle grid spans 20 m (i.e., (5-1)*5), so the half-span is 10 m.
+middle_grid_offset <- 10
+middle_x0 <- chosen_point$x - middle_grid_offset
+middle_y0 <- chosen_point$y - middle_grid_offset
+
+middle_grid <- expand.grid(x = seq(middle_x0, by = 5, length.out = 5),
+                           y = seq(middle_y0, by = 5, length.out = 5)) %>%
+  mutate(Grid = "Middle")
+
+# -------------------------------
+# Step 3: Create the inner grid (5 x 5, 0.5 m apart) centered within the middle grid
+# -------------------------------
+# The inner grid spans 2 m ((5-1)*0.5); half-span is 1 m.
+inner_offset <- 1
+middle_center_x <- mean(range(middle_grid$x))
+middle_center_y <- mean(range(middle_grid$y))
+inner_x0 <- middle_center_x - inner_offset
+inner_y0 <- middle_center_y - inner_offset
+
+inner_grid <- expand.grid(x = seq(inner_x0, by = 0.5, length.out = 5),
+                          y = seq(inner_y0, by = 0.5, length.out = 5)) %>%
+  mutate(Grid = "Inner")
+
+# -------------------------------
+# Step 4: Plot the grids in local coordinates for verification
+# -------------------------------
+plot(outer_grid$x, outer_grid$y,
+     pch = 16, col = "blue",
+     xlab = "X (m)", ylab = "Y (m)",
+     xlim = c(min(outer_grid$x) - 10, max(outer_grid$x) + 10),
+     ylim = c(min(outer_grid$y) - 10, max(outer_grid$y) + 10),
+     main = "Nested Grid Layout with Random Inner Grid Center")
+points(middle_grid$x, middle_grid$y, pch = 16, col = "red")
+points(inner_grid$x, inner_grid$y, pch = 16, col = "green")
+points(chosen_point$x, chosen_point$y, pch = 4, col = "orange", cex = 2)  # Mark the chosen center
+legend("topright", legend = c("Outer Grid (25 m)", "Middle Grid (5 m)", "Inner Grid (0.5 m)", "Chosen Center"),
+       col = c("blue", "red", "green", "orange"), pch = c(16,16,16,4))
+
+# -------------------------------
+# Step 5: Prepare for Georeferencing and Shapefile Export
+# -------------------------------
+library(dplyr)
+library(sf)
+library(mapview)
+
+# Combine all grid points into one data frame.
+all_points <- bind_rows(outer_grid, middle_grid, inner_grid)
+
+# Create a base sf object from the local coordinates (temporary CRS here; we'll adjust below).
+# (In this local system, the x and y are in meters relative to (0,0).)
+all_points_sf_local <- st_as_sf(all_points, coords = c("x", "y"), crs = 32633)
+
+# Define the real-world origin: a known location in WGS84. 
+# In this example, a point in Ames, Iowa.
+origin <- st_sfc(st_point(c(-93.7077880, 41.9977157)), crs = 4326)
+
+# Transform the origin to UTM Zone 15N (EPSG:32615) for Ames, Iowa.
+origin_utm <- st_transform(origin, crs = 32615)
+origin_coords <- st_coordinates(origin_utm)
+print(origin_coords)
+# For instance, you might see: X = 441422.1 (easting), Y = 4649880 (northing)
+
+# Use these coordinates as the UTM origin offsets.
+utm_origin_easting  <- origin_coords[1, 1]
+utm_origin_northing <- origin_coords[1, 2]
+
+# Adjust your local grid points by adding the UTM
+all_points_adjusted <- all_points %>%
+  mutate(
+    UTM_x = x + utm_origin_easting,
+    UTM_y = y + utm_origin_northing
+  )
+
+# Convert the adjusted data frame to an sf object with UTM Zone 15N (EPSG:32615).
+all_points_sf <- st_as_sf(all_points_adjusted, coords = c("UTM_x", "UTM_y"), crs = 32615)
+
+# Transform to WGS84 (EPSG:4326) so the coordinates are in lat/long for GPS use.
+all_points_sf_wgs84 <- st_transform(all_points_sf, crs = 4326)
+
+# Visualize the georeferenced points
+mapview(all_points_sf_wgs84)
+
+# -------------------------------
+# Step 6: Export to a Shapefile
+# -------------------------------
+st_write(all_points_sf_wgs84, "field_work_points.shp", delete_dsn = TRUE)
+
+points_meta <- read_excel("~/ArcGIS/Projects/SABR_Plot_Map/field_work_points_TableToExcel.xlsx")
+
+colnames(points_meta)
+colnames(all_points_sf_wgs84)
+# Join points meta to all_points_sf_wgs84 by X, Y, and Grid
+points <- all_points_sf_wgs84 %>%
+  left_join(points_meta, by = c("x" = "x", "y" = "y", "Grid" = "Grid"))
+str(points)
+# Save points to excel file
+library(writexl)
+write.csv(points, "../SpatialNSABR/field_work_points.csv")

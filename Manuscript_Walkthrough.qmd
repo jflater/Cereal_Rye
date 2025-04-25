@@ -648,9 +648,9 @@ rain %>%
 
 ```{r}
 rain %>% 
-  ggplot(aes(x = TIMESTAMP, y = Mean_Rain)) +
+  ggplot(aes(x = TIMESTAMP, y = sum)) +
   # Plot points where Mean_Rain == 0 in white
-  geom_point(data = filter(rain, Mean_Rain == 0), 
+  geom_point(data = filter(rain, sum == 0), 
              color = "white", size = 3) +
   # Plot points where Mean_Rain > 0 with a gray-to-black gradient
   geom_point(data = filter(rain, Mean_Rain > 0), 

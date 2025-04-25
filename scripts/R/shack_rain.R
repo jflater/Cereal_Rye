@@ -3,11 +3,12 @@ title: "Process shack rainfall .dat files"
 format: html
 ---
 Read from logger box files, not zipped
-```{r}
-path <- "C:/Users/jflater/Box/CABBI/Data/MeasuredData/SABR/Rain_CABBI_Shack/Shack_Rain/"
-```
 
-```{r}
+
+path <- "C:/Users/jflater/Box/CABBI/Data/MeasuredData/SABR/Rain_CABBI_Shack/Shack_Rain/"
+
+
+
 # Function to read rain data files based on a date range
 read_all_rain_files <- function(path) {
   # List all files in the folder matching the pattern (if desired)
@@ -43,20 +44,20 @@ read_all_rain_files <- function(path) {
   return(combined_data)
 }
 
-```
 
-```{r}
+
+
 new_rain <- read_all_rain_files(path)
-```
-```{r}
+
+
 rain_23 <- new_rain %>% 
   dplyr::filter(year(TIMESTAMP) == 2023)
   
 rain_24 <- new_rain %>% 
   dplyr::filter(year(TIMESTAMP) == 2024)
-```
 
-```{r}
+
+
 process_and_plot_rainfall <- function(data) {
   # Calculate the row means for specified rain columns
   data <- data %>%
@@ -82,16 +83,16 @@ process_and_plot_rainfall <- function(data) {
   
   return(list(Data = data, Plot = p))
 }
-```
-```{r}
+
+
 df_rain_23 <- process_and_plot_rainfall(rain_23)
 df_rain_24 <- process_and_plot_rainfall(rain_24)
 print(df_rain_23$Plot)
 print(df_rain_24$Plot)
 
-```
 
-```{r}
+
+
 recent_rain <- new_rain |> 
   select(!Rain_mm_2_Tot) |> 
   process_and_plot_rainfall()
@@ -102,9 +103,9 @@ print(recent_rain$Plot)
 # To access the data
 recent_rain_data <- recent_rain$Data
 tail(recent_rain_data)
-```
 
-```{r}
+
+
 # Function to process rainfall data and plot individual gauges side by side
 process_and_plot_rainfall_gauges <- function(data) {
   # Reshape data from wide to long format, where each gauge becomes a separate observation
@@ -133,54 +134,15 @@ process_and_plot_rainfall_gauges <- function(data) {
 result_plot <- process_and_plot_rainfall_gauges(new_rain)
 print(result_plot)
 
-```
 
-<!-- Save data, this is raw so we will need to remove bad gauges when plotting -->
-<!-- We need to append new data to combined data -->
-<!-- ```{r} -->
-<!-- max(combined_data$TIMESTAMP) -->
-<!-- ``` -->
-<!-- We need to get the files from `r max(combined_data$TIMESTAMP)` to now -->
-<!-- ```{r} -->
-<!-- new_rain <- read_rain_files(path, "2024-06-14", "2024-06-24") -->
-<!-- ``` -->
+#Let's drop the record column
 
-<!-- ```{r} -->
-<!-- head(new_rain) -->
-<!-- head(combined_data) -->
-<!-- ``` -->
-<!-- ```{r} -->
-<!-- rain <- bind_rows(combined_data, new_rain) -->
-<!-- ``` -->
-<!-- ```{r} -->
-<!-- head(rain) -->
-<!-- ``` -->
 
-<!-- ```{r} -->
-<!-- tail(rain) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- # Count duplicates in the column -->
-<!-- duplicate_counts <- table(rain$TIMESTAMP) -->
-
-<!-- # Filter counts to find duplicates -->
-<!-- duplicate_counts[duplicate_counts > 1] -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- any(duplicated(rain$RECORD)) -->
-<!-- any(duplicated(rain$TIMESTAMP)) -->
-<!-- ``` -->
-
-Let's drop the record column
-
-```{r}
 rain_data <- new_rain |>
   select(!RECORD)
-```
 
-```{r}
+
+
 combined_data_cumulative_23 <- df_rain_23$Data %>%
   mutate(
     Cum_Rain_mm_1_Tot = cumsum(Rain_mm_1_Tot),
@@ -216,11 +178,11 @@ ggplot(rain_data_long_24, aes(x = TIMESTAMP, y = Cum_Rain_mm, color = Guage, gro
   geom_line() +
   labs(x = "Time", y = "Rainfall (mm)") +
   theme_minimal()
-```
 
-We should check against the small drainage plots, but for now let's just use gauges 1 and 4
 
-```{r}
+#We should check against the small drainage plots, but for now let's just use gauges 1 and 4
+
+
 rain_mean_23 <- df_rain_23$Data %>% 
   select(-Rain_mm_3_Tot) %>%
   mutate(Mean_Rain = rowMeans(across(starts_with("Rain_mm")))) %>% 
@@ -236,15 +198,15 @@ rain_mean_24 <- df_rain_24$Data %>%
 
 head(rain_mean_24)
 all_mean <- rbind(rain_mean_23, rain_mean_24)
-```
-```{r}
+
+
 cumulative <- all_mean %>% 
   group_by(year(TIMESTAMP)) %>% 
   arrange(TIMESTAMP) %>% 
   mutate(cumulative_rain = cumsum(Mean_Rain))
-```
 
-```{r}
+
+
 library(ggplot2)
 library(dplyr)
 library(lubridate)
@@ -283,5 +245,5 @@ ggplot(cumulative, aes(x = doy, y = cumulative_rain, color = year, group = year)
   theme_minimal()
 
 ggsave("../../figures/cumulative_rain.png", width = 12, height = 8, dpi = 300)
-```
+
 
