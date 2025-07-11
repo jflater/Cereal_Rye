@@ -1,0 +1,228 @@
+---
+title: "Rye Biomass"
+format: html
+---
+```{r}
+library(readxl)
+library(tidyverse)
+library(janitor)
+library(kableExtra)
+```
+```{r}
+rye_biomass <- read_xlsx("data/clean_biomass.xlsx") %>% 
+  clean_names() %>% 
+  mutate(dry_mass = dry_mass_dry_bag_mass - dry_bag_mass)
+kable(rye_biomass)
+```
+
+```{r}
+rye_biomass %>% 
+  ggplot(aes(x = date, y = dry_mass, color = as.factor(plot_id))) +
+  geom_point() +
+  labs(title = "Rye Biomass Over Time",
+       x = "Date",
+       y = "Dry Mass (g)") +
+  theme_minimal()
+```
+
+# Boxplot grouped by date and plot_id
+```{r}
+rye_biomass %>% 
+  ggplot(aes(x = as.factor(date), y = dry_mass, fill = as.factor(plot_id))) +
+  geom_boxplot() +
+  labs(title = "Rye Biomass",
+       x = "Date",
+       y = "Dry Mass (g / m^2)",
+       fill = "Plot") +
+  theme_minimal() 
+```
+```{r}
+library(ggplot2)
+
+p1 <- rye_biomass %>% 
+  ggplot(aes(x = as.factor(plot_id), y = dry_mass, fill = as.factor(plot_id))) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +                
+  geom_jitter(position = position_jitterdodge(jitter.width = 0.15), alpha = 0.6, size = 1) + 
+  scale_fill_viridis_d(name = "Plot") +           
+  labs(title = "Rye Biomass",
+       y = expression("Dry Mass (g/"~m^2*")")) +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "right",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  facet_wrap( ~ date)
+p1$data %>% 
+  select(date, plot_id, area, dry_mass) %>% 
+  kable()
+#ggsave("figures/rye_biomass_plot.tiff", width = 10, height = 6, dpi = 300)
+```
+
+# Nitrogen leaching
+```{r}
+cumulative_flow_data <- read_csv("data/clean/2023_2024_SABR_tile_cumulative_n.csv")
+gs_23 <- cumulative_flow_data %>% 
+  dplyr::filter(growing_season == 2023, `year(date)` != 2024)
+
+gs_24 <- cumulative_flow_data %>% 
+  dplyr::filter(growing_season == 2024, !(`year(date)` %in% c(2023,2025)))
+
+# For drainage summary:
+drainage_summary_23 <- gs_23 %>%
+  group_by(treatment, plot) %>%
+  slice_max(order_by = cumulative_n_loss_mg, with_ties = FALSE) %>%
+  mutate(growing_season = 2023)
+
+drainage_summary_24 <- gs_24 %>%
+  group_by(treatment, plot) %>%
+  slice_max(order_by = cumulative_n_loss_mg, with_ties = FALSE) %>%
+  mutate(growing_season = 2024)
+
+drainage_summary <- bind_rows(drainage_summary_23, drainage_summary_24) %>%
+  mutate(
+    cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 1e6) / 0.145,
+    N_Type = "Nitrogen Leaching",
+    Treatment = factor(treatment, levels = c("Corn", "Soy", "Sorghum", "Sorghum + Rye"))
+  )
+```
+
+```{r}
+nitrate_data <- drainage_summary %>%
+  dplyr::filter(treatment %in% c("Sorghum + Rye"),
+         !is.na(approx_nitrate_mg_l)) %>%
+  mutate(year = year(date)) 
+```
+
+
+```{r}
+colnames(nitrate_data)
+nitrate_data %>% 
+  ggplot(aes(x = as.factor(plot), y = cumulative_n_loss_kg_ha, color = as.factor(plot))) +
+  geom_point(size = 4) +                
+  scale_color_viridis_d(name = "Plot") +           
+  labs(title = "Cumulative N Leached",
+       y = expression("Nitrogen (kg/ha)")) +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "right",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  facet_wrap( ~ year)
+        ggsave("figures/sorg_rye_cumulative_leaching_plot.tiff", width = 10, height = 6, dpi = 300)
+
+```
+
+
+```{r}
+p2 <- nitrate_data %>% 
+  ggplot(aes(x = as.factor(plot), y = cumulative_n_loss_kg_ha, color = as.factor(plot))) +
+  geom_point(size = 4) +                
+  scale_color_viridis_d(name = "Plot") +           
+  labs(title = "Cumulative N Leached",
+       y = expression("Nitrogen (kg/ha)")) +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = "right",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  facet_wrap( ~ year) 
+
+p2$data %>% 
+  select(date, plot, cumulative_n_loss_kg_ha) %>% 
+  kable()
+```
+
+
+```{r}
+# Summarize mean rye biomass per plot and year
+biomass_summary <- rye_biomass %>%
+  mutate(year = format(as.Date(date), "%Y")) %>%
+  group_by(plot_id, year) %>%
+  summarise(mean_biomass = mean(dry_mass), .groups = 'drop')
+
+# Summarize cumulative nitrate leaching per plot and year (already filtered for Sorghum + Rye)
+leaching_summary <- nitrate_data %>%
+  mutate(year = format(as.Date(date), "%Y")) %>% 
+  rename(plot_id = plot) %>%
+  group_by(plot_id, year) %>%
+  summarise(mean_cumulative_n_loss = mean(cumulative_n_loss_kg_ha), .groups = 'drop')
+
+# Join the two summaries by plot and year
+combined_data <- biomass_summary %>%
+  inner_join(leaching_summary, by = c("plot_id", "year"))
+
+# Scatter plot with regression line
+ggplot(combined_data, aes(x = mean_biomass, y = mean_cumulative_n_loss, color = year)) +
+  geom_point(size = 4) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed") +
+  scale_color_viridis_d(name = "Year") +
+  labs(
+    title = "Mean Rye Biomass vs Cumulative Nitrate Leaching",
+    x = expression("Mean Rye Biomass (g/"~m^2*")"),
+    y = expression("Mean Cumulative Nitrate Leaching (kg N/ha)")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "right"
+  )
+ggsave("figures/biomassvsleachingyear.png")
+```
+
+
+```{r}
+library(lubridate)
+library(dplyr)
+
+# Step 1: Get rye harvest dates per plot and year
+harvest_dates <- rye_biomass %>%
+  mutate(year = year(as.Date(date))) %>%
+  group_by(plot_id, year) %>%
+  summarise(harvest_date = max(as.Date(date)), .groups = "drop")
+
+# Step 2: Prepare raw cumulative flow data and add year column
+cumulative_flow_data <- cumulative_flow_data %>%
+  mutate(year = year(as.Date(date)),
+         plot_id = plot)  # rename plot for join
+
+# Step 3: Join harvest dates and filter cumulative flow data to dates ≤ harvest date
+cumulative_flow_filtered <- cumulative_flow_data %>%
+  inner_join(harvest_dates, by = c("plot_id", "year")) %>%
+  filter(as.Date(date) <= harvest_date)
+
+# Step 4: Now slice max cumulative N loss per plot, treatment, year on filtered data
+drainage_summary_filtered <- cumulative_flow_filtered %>%
+  group_by(treatment, plot_id, year) %>%
+  slice_max(order_by = cumulative_n_loss_mg, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    cumulative_n_loss_kg_ha = (cumulative_n_loss_mg / 1e6) / 0.145,
+    N_Type = "Nitrogen Leaching",
+    Treatment = factor(treatment, levels = c("Corn", "Soy", "Sorghum", "Sorghum + Rye"))
+  )
+
+# Step 5: Filter for sorghum + rye treatment and prepare for plotting
+nitrate_data_filtered <- drainage_summary_filtered %>%
+  filter(Treatment == "Sorghum + Rye") %>%
+  mutate(year = as.character(year))
+
+# Step 6: Summarize biomass as before
+biomass_summary <- rye_biomass %>%
+  mutate(year = as.character(year(date))) %>%
+  group_by(plot_id, year) %>%
+  summarise(mean_biomass = mean(dry_mass), .groups = "drop")
+
+# Step 7: Join biomass and filtered nitrate leaching data
+combined_filtered <- biomass_summary %>%
+  inner_join(nitrate_data_filtered, by = c("plot_id", "year"))
+
+# Step 8: Plot
+ggplot(combined_filtered, aes(x = mean_biomass, y = cumulative_n_loss_kg_ha, color = year)) +
+  geom_point(size = 4) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed") +
+  scale_color_viridis_d(name = "Year") +
+  labs(
+    title = "Mean Rye Biomass vs Cumulative Nitrate Leaching (Filtered to Harvest Date)",
+    x = expression("Mean Rye Biomass (g/"~m^2*")"),
+    y = expression("Mean Cumulative Nitrate Leaching (kg N/ha)")
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "right"
+  )
+ggsave("figures/biomassvsleachingtoharvestdate.png")
+
+```

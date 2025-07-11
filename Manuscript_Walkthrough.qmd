@@ -7,6 +7,7 @@ format:
     toc-location: left
     code-fold: true
 ---
+
 ```{r, libraries, warning=FALSE, message=F, echo=T}
 # Load necessary packages
 library(lubridate)
@@ -29,6 +30,7 @@ library(janitor)
 
 conflict_prefer("filter", "dplyr")
 ```
+
 ```{r, colors and theme, cache=T}
 # --- Theme & Colors  ---
 treatment_colors <- c(
@@ -127,12 +129,12 @@ test %>%
   kable() 
 ```
 
-
 ```{r, flow data}
 cumulative_flow_data <- read_csv("data/clean/2023_2024_SABR_tile_cumulative_n.csv", show_col_types = FALSE)
 ```
 
 Here let's look at the N leached (Nitrate + Ammonia) for each season.
+
 ```{r, individual flow years 23}
 gs_23 <- 
   cumulative_flow_data %>% 
@@ -229,6 +231,7 @@ drainage_summary <- bind_rows(drainage_summary_23, drainage_summary_24) %>%
     .groups = "drop"
   )
 ```
+
 ```{r}
 drainage_summary %>% 
   kable()
@@ -250,7 +253,9 @@ n2o_summary <- test %>%
 print(drainage_summary)
 all_n_data <- bind_rows(drainage_summary, n2o_summary)
 ```
+
 ## Figure 1
+
 ```{r, plot figure 1}
 ggplot(all_n_data, aes(x = Treatment, y = mean, fill = N_Type)) +
   geom_col(position = position_dodge(0.8), color = "black") +
@@ -430,6 +435,7 @@ ggsave("figures/Figure_6.pdf", plot = heatmap_plot, width = 7.1, height = 5.5)
 ```
 
 ## Figure 7
+
 ```{r}
 corn_soy <- all_n_data %>% 
   filter(Treatment %in% c("Corn", "Soy"))
@@ -458,13 +464,12 @@ ggsave("figures/Figure_7.tiff",
        width = 180, height = 130, units = "mm", dpi = 600, compression = "lzw")
 ggsave("figures/Figure_7.pdf", width = 7.1, height = 5.5)  # double-column width
 ```
+
 ```{r}
 corn_soy %>% 
   kbl(digits = 2) %>% 
   kable_classic(full_width = F, html_font = "Cambria")
 ```
-
-
 
 ```{r}
 final_sorghum <- df %>% 
@@ -563,7 +568,9 @@ p <- ggplot(drainage_summary_stats, aes(x = Treatment, y = cumulative_n_loss_kg_
   scale_fill_manual(values = treatment_colors)
 
 ```
+
 ### Rye percent reduction
+
 ```{r}
 reduction <- drainage_summary_stats %>% 
   group_by(growing_season, Treatment) %>%
@@ -589,7 +596,9 @@ reduction_comp %>%
 ```
 
 # Tables
+
 ## Table 1
+
 ```{r}
 my_table <- all_n_data %>% 
  select(`Growing Season` = growing_season, `N Loss Pathway` = N_Type, Treatment, Mean = mean,
@@ -602,6 +611,7 @@ my_table <- all_n_data %>%
 my_table
 
 ```
+
 ```{r}
 library(officer)
 library(flextable)
@@ -634,7 +644,9 @@ publish_table_word <- function(data, caption, file_name, digits = 2) {
 publish_table_word(my_table, "Cumulative N losses", "tables/publication_ready_table.docx")
 
 ```
+
 # Climatic (rain/temp) data
+
 ```{r}
 rain <- read_csv("data/SABR_Shack_mean_rain.csv", show_col_types = FALSE) 
 str(rain)

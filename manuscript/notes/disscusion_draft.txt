@@ -1,0 +1,28 @@
+    Previous research has indicated that sorghums biological nitrification
+inhibition (BNI) trait may be a potential mechanism for reducing nitrate
+leaching by suppressing soil nitrifying microbes (Ghosh et al., 2024, Subbarao
+et al., 2013). However, modeling studies (Hartman et al., 2022) suggest that the
+timing and magnitude of BNI effects alone may not explain large reductions in N
+losses under field conditions. In our study, a possible explanation is the
+timing of rainfall events in relation to fertilizer timing. In 2024, the study
+site's region experienced significant rainfall immedietly after corn
+fertilization, resulting in excess soil moisture and drainage, likely
+contributing to the high observed nitrate leaching in tile water. In contrast,
+the fertilization of sorghum was late in 2024, during a drier portion of the
+year, resulting in little to no tile-draingage and therefore limited nitrogen
+leached compared to corn.  
+    Much of the existing research on nitrogen loss mitigation using cereal rye
+cover crops has focused on traditional corn-soy based cropping systems,
+where winter rye has consistently been shown to reduce nitrate leaching by
+30-50 % (Waring et al., 2020; Thapa, Mirsky, Tully, 2018; Johnson et al.,
+1998). However, there is a notable lack of field-based studies evaluating
+these benefits in sorghum-based bioenergy systems, despite physiological and
+management differences that may affect nitrogen cycling and cover crop
+interactions. Regardless of cropping system, cereal rye's effectiveness stems
+from its active growth during the fall and spring, periods when the main crop is
+absent, young, or dormant and not taking up nitrogen. During these times, rye's
+living root system scavenges excess soil nitrogen, reducing potential losses
+(Waring et al., 2020). Consistent with this mechanism, our results demonstrated
+that sorghum plots with cereal rye cover crops showed a reduction in nitrate
+losses, approximately 85-90% lower than sorghum-only plots, particularly during
+the psring drainage period when leaching risk is highest. 

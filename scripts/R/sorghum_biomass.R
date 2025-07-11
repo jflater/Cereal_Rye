@@ -86,7 +86,34 @@ ggplot(biomass_summary, aes(x = Treatment, y = mean_biomass, fill = Treatment)) 
         axis.title = element_text(size = 16))
 
 ggsave("figures/sorghum_biomass_2023.png", width = 8, height = 6, dpi = 300)
+moisture_df <- data.frame(
+  Plot = c(2, 7, 9, 15),
+  Moisture = c(0.749262537, 0.766325316, 0.731502423, 0.767241379)
+)
 
+# Calculate average moisture
+avg_moisture <- mean(moisture_df$Moisture)
+
+# Adjust biomass_summary by dividing mean_biomass and ci by avg_moisture
+biomass_summary <- biomass_summary %>%
+  mutate(
+    mean_biomass_corr = mean_biomass * (1 - avg_moisture),
+    ci_corr = ci * (1 - avg_moisture)
+  )
+# Plot corrected biomass with error bars
+ggplot(biomass_summary, aes(x = Treatment, y = mean_biomass_corr, fill = Treatment)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = mean_biomass_corr - ci_corr, ymax = mean_biomass_corr + ci_corr),
+                width = 0.2, color = "black") +
+  labs(x = "Treatment", y = expression("Average Biomass 2024 (Mg ha"^-1*")")) +
+  scale_fill_manual(values = treatment_colors) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(size = 14),
+        axis.title = element_text(size = 16))
+
+# Save the updated plot
+ggsave("figures/sorghum_biomass_2023_corrected.png", width = 8, height = 6, dpi = 300)
 ########### 
 #####2024
 library(readxl)
@@ -141,3 +168,31 @@ ggplot(biomass_summary, aes(x = treatment, y = mean_biomass, fill = treatment)) 
         axis.title = element_text(size = 16))
 
 ggsave("figures/sorghum_biomass_2024.png", width = 8, height = 6, dpi = 300)
+
+moisture_df <- data.frame(
+  Plot = c(2, 7, 9, 15),
+  Moisture = c(0.749262537, 0.766325316, 0.731502423, 0.767241379)
+)
+# Calculate average moisture
+avg_moisture <- mean(moisture_df$Moisture)
+
+biomass_summary <- biomass_summary %>%
+  mutate(
+    mean_biomass_corr = mean_biomass * (1 - avg_moisture),
+    ci_corr = ci * (1 - avg_moisture)
+  )
+
+# Plot corrected biomass with error bars
+ggplot(biomass_summary, aes(x = treatment, y = mean_biomass_corr, fill = treatment)) +
+  geom_bar(stat = "identity", color = "black", width = 0.7) +
+  geom_errorbar(aes(ymin = mean_biomass_corr - ci_corr, ymax = mean_biomass_corr + ci_corr),
+                width = 0.2, color = "black") +
+  labs(x = "Treatment", y = expression("Average Biomass 2024 (Mg ha"^-1*")")) +
+  scale_fill_manual(values = treatment_colors) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        text = element_text(size = 14),
+        axis.title = element_text(size = 16))
+
+# Save the updated plot
+ggsave("figures/sorghum_biomass_2024_corrected.png", width = 8, height = 6, dpi = 300)
