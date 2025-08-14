@@ -1,0 +1,15 @@
+---
+title: "Cereal Rye Manuscript Data Processing"
+format: html
+---
+
+# Process raw data
+
+Jae noticed that there was missing data from June 19th in the most recent data that I sent him. I need to add that and confirm that other data is present. 
+
+I will organize all the raw .json files into a single foldler. 
+
+```{r}
+getwd()
+```
+

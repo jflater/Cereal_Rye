@@ -1,0 +1,40 @@
+{
+  "r.lsp.promptToInstall": false,
+  "vim.useSystemClipboard": true,
+  "vim.useCtrlKeys": true,
+  "vim.hlsearch": true,
+  "vim.insertModeKeyBindings": [
+    {
+      "before": ["j", "j"],
+      "after": ["<Esc>"]
+    }
+  ],
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": ["<leader>", "w"],
+      "commands": ["workbench.action.files.save"]
+    }
+  ],
+  "vim.leader": "<space>",
+  "quarto.render.previewType": "internal",
+  "quarto.render.renderOnSave": true,
+  "files.associations": {
+    "*.R": "r",
+    "*.Rmd": "rmd",
+    "*.qmd": "quarto"
+  },
+  "quarto.visualEditor.defaultMode": "source",
+  "r.rterm.windows": "wsl",
+  "r.rterm.option": ["bash", "-l", "-c", "R --interactive"],
+  "r.plot.useHttpgd": true,
+  "r.workspaceViewer.showObjectSize": true,
+  "r.session.levelOfObjectDetail": "Detailed",
+  "python.defaultInterpreterPath": "./venv/bin/python",
+  "github.copilot.enable": {
+    "quarto": true,
+    "*": true,
+    "r": true,
+    "python": true,
+    "markdown": true
+  }
+}

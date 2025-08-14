@@ -1,0 +1,21 @@
+---
+title: "JaeDate Search"
+author: "Your Name"
+format: 
+  html:
+    toc: true
+    code-fold: true
+---
+
+```{r}
+# Path to .csv flux files
+path <- "data/processed/"
+
+# List all .csv files in the directory
+files <- list.files(path, pattern = "\\.csv$", full.names = TRUE)
+```
+
+
+```{r}
+list(files)
+```
